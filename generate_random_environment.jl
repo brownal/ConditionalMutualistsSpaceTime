@@ -1,6 +1,6 @@
 using Distributions
 
-function generate_variable_env(lowFit, highFit, mStateProb, sameStateProb, timeScale, maxTime)
+function generate_random_env(lowFit, highFit, mStateProb, sameStateProb, timeScale, maxTime)
 
 	# Map states to the fitness of infected and uninfected individuals in each patch
     stateToFitness = [
@@ -25,7 +25,7 @@ function generate_variable_env(lowFit, highFit, mStateProb, sameStateProb, timeS
     
     # State exit probabilities (i.e. probability the patches leave a given pair of states)
     exitProbs = 1 ./ (timeScale * patchFreqs)
-
+	
     # Choose an initial state
     currentState = rand(Categorical(patchFreqs))
     currentTime = 1
@@ -35,7 +35,7 @@ function generate_variable_env(lowFit, highFit, mStateProb, sameStateProb, timeS
 
     # Simulate state changes until the time elapsed = maxTime
     while currentTime <= maxTime
-
+    
         # Find the time at which the patches transition to a new pair of states
         currentTime += rand(NegativeBinomial(1, exitProbs[currentState])) + 1
 
@@ -44,8 +44,10 @@ function generate_variable_env(lowFit, highFit, mStateProb, sameStateProb, timeS
             break
         end
 
-        # Choose the new pair of states (equal probability of being anything but the current one)
-        transitionProbs = (1/3) * [(state != currentState) for state=1:4]
+        # Choose the new pair of states (equal probability of being any other possible state)
+        transitionProbs = (1 / (sum(patchFreqs .> 0) - 1)) * 
+        	[((state != currentState) && (patchFreqs[state] > 0)) for state=1:4]
+
         currentState = rand(Categorical(transitionProbs))
 
         # Record the new state and the time at which it starts
@@ -66,6 +68,22 @@ function generate_variable_env(lowFit, highFit, mStateProb, sameStateProb, timeS
         # Note that the variable symb is 1 when host is uninfected, 2 when infected
         return(stateToFitness[2 * (patch - 1) + symb, state])
     end
+    
+    # Turn the state numbers in the list of state transitions into their names
+    stateToNames = [
+		"M"    "M";
+		"M"    "P";
+		"P"    "M";
+		"P"    "P"]
+	
+	# Put the state names together with the time the changes occur at
+	namedTransitions = map(
+		(time, state) -> hcat(time, stateToNames[state, 1], stateToNames[state, 2]),
+		stateTransitions[:, 1], stateTransitions[:, 2])
+	
+	# Fix the above so that it is a matrix and not a vector of 1-d matrices
+	namedTransitions = reduce(vcat, namedTransitions)
 
-    return(stateTransitions, getState)
+
+    return(namedTransitions, getState)
 end
